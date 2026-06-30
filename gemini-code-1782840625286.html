@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Git Workflow Task Manager</title>
+    <style>
+        :root {
+            --bg-color: #f4f5f7;
+            --text-color: #172b4d;
+            --card-bg: #ffffff;
+            --primary: #0052cc;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        h1 { margin: 0; font-size: 24px; }
+        .add-task-form {
+            display: flex;
+            gap: 10px;
+        }
+        input[type="text"] {
+            padding: 8px 12px;
+            border: 1px solid #dfe1e6;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 250px;
+        }
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        button:hover { background-color: #0043a6; }
+        
+        .board {
+            display: flex;
+            gap: 20px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+        .column {
+            background-color: #ebecf0;
+            border-radius: 8px;
+            min-width: 280px;
+            flex: 1;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .column h2 {
+            font-size: 14px;
+            margin: 0 0 10px 8px;
+            text-transform: uppercase;
+            color: #5e6c84;
+        }
+        .task-list {
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .task-card {
+            background-color: var(--card-bg);
+            border-radius: 4px;
+            padding: 12px;
+            box-shadow: 0 1px 2px rgba(9, 30, 66, 0.25);
+            cursor: grab;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .task-card:active { cursor: grabbing; }
+        .task-id { font-size: 12px; color: #5e6c84; font-weight: bold; }
+        .task-title { font-size: 14px; }
+        
+        /* State Indicators */
+        #issues .task-card { border-left: 4px solid #ff5630; }
+        #branches .task-card { border-left: 4px solid #ffab00; }
+        #pull-requests .task-card { border-left: 4px solid #36b37e; }
+        #merged .task-card { border-left: 4px solid #6554c0; }
+        
+        .drag-over { background-color: #dfe1e6; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Git Task Board</h1>
+        <form class="add-task-form" id="taskForm">
+            <input type="text" id="taskInput" placeholder="e.g., Fix memory leak..." required>
+            <button type="submit">Add Task</button>
+        </form>
+    </header>
+
+    <div class="board">
+        <div class="column">
+            <h2>Issues (To Do)</h2>
+            <div class="task-list" id="issues" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+        </div>
+        <div class="column">
+            <h2>Active Branches (In Progress)</h2>
+            <div class="task-list" id="branches" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+        </div>
+        <div class="column">
+            <h2>Pull Requests (Review)</h2>
+            <div class="task-list" id="pull-requests" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+        </div>
+        <div class="column">
+            <h2>Merged (Done)</h2>
+            <div class="task-list" id="merged" ondrop="drop(event)" ondragover="allowDrop(event)"></div>
+        </div>
+    </div>
+
+    <script>
+        let taskIdCounter = 1;
+
+        // Initialize with sample data
+        const initialTasks = [
+            { id: 1, title: 'Refactor database schema', status: 'issues' },
+            { id: 2, title: 'Update documentation for API', status: 'branches' },
+            { id: 3, title: 'Fix memory leak in auth module', status: 'pull-requests' },
+            { id: 4, title: 'Setup CI/CD pipeline', status: 'merged' }
+        ];
+
+        function createTaskCard(id, title) {
+            const card = document.createElement('div');
+            card.className = 'task-card';
+            card.draggable = true;
+            card.id = `task-${id}`;
+            card.ondragstart = drag;
+            
+            card.innerHTML = `
+                <span class="task-id">#${id}</span>
+                <span class="task-title">${title}</span>
+            `;
+            return card;
+        }
+
+        function renderInitialTasks() {
+            initialTasks.forEach(task => {
+                const card = createTaskCard(task.id, task.title);
+                document.getElementById(task.status).appendChild(card);
+                taskIdCounter = Math.max(taskIdCounter, task.id + 1);
+            });
+        }
+
+        // Form Submission
+        document.getElementById('taskForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const input = document.getElementById('taskInput');
+            if (input.value.trim() === '') return;
+            
+            const card = createTaskCard(taskIdCounter++, input.value);
+            document.getElementById('issues').appendChild(card);
+            input.value = '';
+        });
+
+        // Drag and Drop Logic
+        function allowDrop(ev) {
+            ev.preventDefault();
+            const target = ev.target.closest('.task-list');
+            if(target) target.classList.add('drag-over');
+        }
+
+        function drag(ev) {
+            ev.dataTransfer.setData("text", ev.target.id);
+        }
+
+        function drop(ev) {
+            ev.preventDefault();
+            document.querySelectorAll('.task-list').forEach(list => list.classList.remove('drag-over'));
+            const data = ev.dataTransfer.getData("text");
+            const draggedElement = document.getElementById(data);
+            const dropTarget = ev.target.closest('.task-list');
+            
+            if (dropTarget && draggedElement) {
+                dropTarget.appendChild(draggedElement);
+            }
+        }
+        
+        // Remove highlight when dragging leaves
+        document.querySelectorAll('.task-list').forEach(list => {
+            list.addEventListener('dragleave', function(ev) {
+                this.classList.remove('drag-over');
+            });
+        });
+
+        // Boot
+        renderInitialTasks();
+    </script>
+</body>
+</html>
